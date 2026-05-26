@@ -699,6 +699,35 @@ async function extractPdfText(file) {
   return out;
 }
 
+/**
+ * Preprocess a canvas for better OCR on busy grocery flyers:
+ * convert to grayscale and crank up contrast so text pops
+ * regardless of background colour.
+ */
+function preprocessCanvas(canvas) {
+  const ctx  = canvas.getContext('2d');
+  const img  = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d    = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    // Greyscale (luminance-weighted)
+    const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    // Strong contrast stretch around mid-point
+    const c = Math.min(255, Math.max(0, (g - 128) * 2.2 + 128));
+    d[i] = d[i + 1] = d[i + 2] = c;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/** Run Tesseract on a canvas blob with grocery-flyer–friendly settings. */
+async function runTesseract(blob) {
+  const worker = await Tesseract.createWorker('eng');
+  // PSM 11 = sparse text: finds text anywhere, ignoring layout — best for flyers
+  await worker.setParameters({ tessedit_pageseg_mode: '11' });
+  const { data: { text } } = await worker.recognize(blob);
+  await worker.terminate();
+  return text;
+}
+
 /** OCR a scanned PDF by rendering each page to canvas then running Tesseract. */
 async function ocrPdf(file) {
   await ensurePdfJs();
@@ -710,17 +739,16 @@ async function ocrPdf(file) {
   for (let p = 1; p <= pdf.numPages; p++) {
     setProc(`OCR — page ${p} of ${pdf.numPages} (this may take a moment)…`);
     const page     = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale: 2.0 });
+    // 3× scale gives Tesseract much more pixel detail on dense flyer text
+    const viewport = page.getViewport({ scale: 3.0 });
     const canvas   = document.createElement('canvas');
     canvas.width   = viewport.width;
     canvas.height  = viewport.height;
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    preprocessCanvas(canvas);
 
-    const blob   = await new Promise(r => canvas.toBlob(r, 'image/png'));
-    const worker = await Tesseract.createWorker('eng');
-    const { data: { text } } = await worker.recognize(blob);
-    await worker.terminate();
-    out += text + '\n\n';
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    out += await runTesseract(blob) + '\n\n';
   }
   return out;
 }
@@ -729,10 +757,17 @@ async function ocrPdf(file) {
 async function ocrImage(file) {
   await ensureTesseract();
   setProc('Running image recognition…');
-  const worker = await Tesseract.createWorker('eng');
-  const { data: { text } } = await worker.recognize(file);
-  await worker.terminate();
-  return text;
+
+  // Draw to canvas so we can preprocess before OCR
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
+  canvas.width  = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0);
+  preprocessCanvas(canvas);
+
+  const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+  return runTesseract(blob);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -741,6 +776,22 @@ async function ocrImage(file) {
 
 const PRICE_RE = /\$\s*(\d{1,2}\.?\d{0,2})\b/;
 const SKIP_RE  = /^(valid|page|week|save|buy|get|with|sale|digital|coupon|card|limit|price|per|bonus|special|ad|weekly|store|visit|shop|dept|department|®|™)/i;
+
+/** Return true only if the string looks like a real product name, not OCR noise. */
+function isValidName(s) {
+  // Must have at least 4 alphabetic characters
+  const alpha = (s.match(/[a-zA-Z]/g) || []).length;
+  if (alpha < 4) return false;
+  // Alphabetic chars must make up >50% of the string
+  if (alpha / s.length < 0.5) return false;
+  // Reject strings containing typical OCR garbage characters
+  if (/[|{}\[\]~=<>\\@#%^]/.test(s)) return false;
+  // Must contain at least one word of 3+ letters
+  if (!/[a-zA-Z]{3}/.test(s)) return false;
+  // Reject strings that look like lines of symbols / dashes
+  if (/^[-—_*•·.]{3,}/.test(s)) return false;
+  return true;
+}
 
 function classifyItem(nl) {
   for (const kw of MEAT_KW)    if (nl.includes(kw)) return 'meat';
@@ -772,19 +823,21 @@ function parseAdText(raw) {
     const price = parseFloat(pm[1]);
     if (!price || price <= 0 || price > 30) continue;
 
-    // Collect name lines from up to 4 rows above this price line
+    // Collect name lines from up to 5 rows above this price line
     const nameParts = [];
-    for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+    for (let j = i - 1; j >= Math.max(0, i - 5); j--) {
       const l = lines[j];
       if (l.match(PRICE_RE)) break;         // another price — stop
       if (l.match(SKIP_RE))  continue;      // promo language — skip
       if (l.length < 3 || l.length > 80)   continue;
       if (/^\d+$/.test(l))                  continue;
+      if (!isValidName(l))   continue;      // reject OCR garbage lines
       nameParts.unshift(l);
     }
 
     const name = nameParts.join(' ').trim();
     if (name.length < 3) continue;
+    if (!isValidName(name)) continue;       // final sanity check on combined name
 
     const cat = classifyItem(name.toLowerCase());
     if (!cat) continue;
