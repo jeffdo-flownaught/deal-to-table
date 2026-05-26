@@ -383,18 +383,30 @@
       max-width: 460px; width: 100%;
       box-shadow: 0 24px 60px rgba(0,0,0,0.18);
     }
-    .modal h2 { font-size: 1.15rem; margin-bottom: 10px; }
-    .modal p  { color: var(--muted); font-size: 0.87rem; line-height: 1.65; margin-bottom: 20px; }
+    .modal h2 { font-size: 1.15rem; margin-bottom: 16px; }
+    .modal-section { margin-bottom: 4px; }
+    .modal-section-title {
+      font-size: 0.9rem; font-weight: 700; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .badge-optional, .badge-required {
+      font-size: 0.68rem; font-weight: 600; padding: 2px 7px;
+      border-radius: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .badge-optional { background: var(--green-pale); color: var(--green); }
+    .badge-required { background: #fef3c7; color: #92400e; }
+    .modal-divider { border: none; border-top: 1.5px solid var(--border); margin: 16px 0; }
+    .modal p  { color: var(--muted); font-size: 0.83rem; line-height: 1.6; margin-bottom: 10px; }
     .modal p a { color: var(--green); font-weight: 600; }
     .modal label { display: block; font-size: 0.84rem; font-weight: 600; margin-bottom: 6px; }
     .modal input {
       width: 100%; padding: 11px 14px;
       border: 2px solid var(--border); border-radius: 8px;
-      font-size: 0.9rem; outline: none; margin-bottom: 18px;
+      font-size: 0.88rem; outline: none; margin-bottom: 4px;
       font-family: monospace;
     }
     .modal input:focus { border-color: var(--green); }
-    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
     .btn-secondary {
       padding: 10px 20px; border: 2px solid var(--border);
       border-radius: 8px; background: white;
@@ -540,15 +552,31 @@
 <!-- ── API key modal ────────────────────────────────────────────────────── -->
 <div class="overlay" id="overlay">
   <div class="modal">
-    <h2>🔑 Spoonacular API Key</h2>
-    <p>
-      DealPlate uses <a href="https://spoonacular.com/food-api" target="_blank">Spoonacular</a>
-      to find recipes. The free tier allows <strong>150 requests/day</strong> — plenty for daily personal use.
-      <br><br>
-      <a href="https://spoonacular.com/food-api/console#Dashboard" target="_blank">Get your free key →</a>
-    </p>
-    <label for="key-input">Your API Key</label>
-    <input type="text" id="key-input" placeholder="Paste your Spoonacular key here" autocomplete="off" />
+    <h2>⚙️ API Settings</h2>
+
+    <div class="modal-section">
+      <div class="modal-section-title">🤖 Gemini API Key <span class="badge-optional">for ad scanning</span></div>
+      <p>
+        Dramatically improves sale-item extraction from image-based grocery ads.
+        Uses <strong>Gemini 1.5 Flash</strong> — free tier: 1,500 requests/day.<br>
+        <a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key at aistudio.google.com →</a>
+      </p>
+      <label for="gemini-input">Gemini API Key</label>
+      <input type="text" id="gemini-input" placeholder="AIza…" autocomplete="off" />
+    </div>
+
+    <div class="modal-divider"></div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">🍽️ Spoonacular API Key <span class="badge-required">for recipes</span></div>
+      <p>
+        Required for recipe search. Free tier: <strong>150 requests/day</strong>.<br>
+        <a href="https://spoonacular.com/food-api/console#Dashboard" target="_blank">Get a free key at spoonacular.com →</a>
+      </p>
+      <label for="key-input">Spoonacular API Key</label>
+      <input type="text" id="key-input" placeholder="Paste your Spoonacular key here" autocomplete="off" />
+    </div>
+
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn-primary" onclick="saveKey()">Save</button>
@@ -563,6 +591,9 @@
 // ═══════════════════════════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════════════════
+
+// Built-in Gemini key — users can override via ⚙️ API Settings
+const DEFAULT_GEMINI_KEY = 'AIzaSyAU_qbOR2pmpMOP3U-UpHAoOgi8Nx-L6D8';
 
 const MEAT_KW = [
   'chicken','beef','steak','pork','turkey','salmon','shrimp','tilapia',
@@ -858,6 +889,115 @@ function parseAdText(raw) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  GEMINI VISION EXTRACTION
+// ═══════════════════════════════════════════════════════════════════
+
+const GEMINI_PROMPT = `This is a page from a grocery store weekly sales ad.
+Extract every meat, seafood, and produce item that has a sale/promotional price shown.
+
+Return ONLY a JSON array — no explanation, no markdown:
+[{"name": "item name as shown", "category": "meat", "sale_price": 2.99}, ...]
+
+Rules:
+- "category" must be "meat" (for all meat and seafood) or "produce" (all fruit and vegetables)
+- "sale_price" is the promotional price in dollars as a number
+- Include all visible meat/seafood/produce items even if the description is partial
+- If no qualifying items are visible on this page, return []`;
+
+/**
+ * Render one PDF page to a JPEG base64 string at the given scale.
+ */
+async function pageToBase64(pdfPage, scale = 2.0) {
+  const viewport = pdfPage.getViewport({ scale });
+  const canvas   = document.createElement('canvas');
+  canvas.width   = viewport.width;
+  canvas.height  = viewport.height;
+  await pdfPage.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  return canvas.toDataURL('image/jpeg', 0.88).split(',')[1];
+}
+
+/**
+ * Parse a raw model response string into structured deal items.
+ */
+function parseVisionResponse(rawText) {
+  const match = rawText.trim().match(/\[[\s\S]*\]/);
+  if (!match) return [];
+  try {
+    return JSON.parse(match[0])
+      .filter(i => i.name && ['meat', 'produce'].includes(i.category))
+      .map(i => ({
+        id:         crypto.randomUUID(),
+        name:       String(i.name).slice(0, 80),
+        category:   i.category,
+        sale_price: i.sale_price ? parseFloat(i.sale_price) : null,
+      }));
+  } catch { return []; }
+}
+
+/**
+ * Send one flyer page image to Gemini Flash and get back structured items.
+ */
+async function callGeminiVision(base64, geminiKey) {
+  const url  = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+  const resp = await fetch(url, {
+    method:  'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          { inline_data: { mime_type: 'image/jpeg', data: base64 } },
+          { text: GEMINI_PROMPT },
+        ],
+      }],
+      generationConfig: { temperature: 0, maxOutputTokens: 1024 },
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    if (resp.status === 400) throw new Error('Invalid Gemini API key — check it in ⚙️ API Settings.');
+    if (resp.status === 429) throw new Error('Gemini rate limit hit — wait a moment and try again.');
+    throw new Error(`Gemini API ${resp.status}: ${err.error?.message || resp.statusText}`);
+  }
+
+  const data    = await resp.json();
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return parseVisionResponse(rawText);
+}
+
+/**
+ * Extract items from a flyer using Gemini Vision.
+ * Handles both PDFs (page-by-page) and raster images.
+ */
+async function extractWithGemini(file, geminiKey) {
+  if (file.type === 'application/pdf') {
+    await ensurePdfJs();
+    const ab  = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+    const all = [];
+
+    for (let p = 1; p <= pdf.numPages; p++) {
+      setProc(`Scanning page ${p} of ${pdf.numPages} with Gemini…`);
+      const page  = await pdf.getPage(p);
+      const b64   = await pageToBase64(page, 2.0);
+      const items = await callGeminiVision(b64, geminiKey);
+      all.push(...items);
+    }
+    return all;
+
+  } else {
+    setProc('Scanning image with Gemini…');
+    const b64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload  = () => res(reader.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+    return callGeminiVision(b64, geminiKey);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  FILE HANDLING
 // ═══════════════════════════════════════════════════════════════════
 
@@ -871,38 +1011,49 @@ async function handleFile(file) {
   showProc('Reading file…');
 
   try {
-    let text = '';
+    const geminiKey = localStorage.getItem('gemini_key') || DEFAULT_GEMINI_KEY;
+    let found = [];
 
-    if (file.type === 'application/pdf') {
-      text = await extractPdfText(file);
-
-      // If text is too short, it's likely a scanned PDF — offer OCR
-      if (text.replace(/\s/g, '').length < 60) {
-        hideProc();
-        const go = confirm(
-          'This looks like a scanned (image-based) PDF.\n\n' +
-          'Run image recognition on it? This may take 30–60 seconds.'
-        );
-        if (go) {
-          showProc('Preparing OCR…');
-          text = await ocrPdf(file);
-        } else {
-          return;
-        }
-      }
-    } else if (file.type.startsWith('image/')) {
-      text = await ocrImage(file);
-    } else {
+    if (!['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
+        && !file.type.startsWith('image/')) {
       showError('Unsupported file type. Please upload a PDF, JPG, or PNG.');
       return;
     }
 
-    setProc('Analysing sale items…');
-    const found = parseAdText(text);
+    if (geminiKey) {
+      // ── Gemini Vision path (accurate, handles complex flyers) ──────────
+      found = await extractWithGemini(file, geminiKey);
+
+    } else {
+      // ── Fallback: PDF.js text extraction + Tesseract OCR ──────────────
+      let text = '';
+
+      if (file.type === 'application/pdf') {
+        text = await extractPdfText(file);
+
+        if (text.replace(/\s/g, '').length < 60) {
+          hideProc();
+          const go = confirm(
+            'This looks like a scanned (image-based) PDF.\n\n' +
+            'Run image recognition? This may take 30–60 s.\n\n' +
+            'Tip: for much better results on image-based flyers,\n' +
+            'add a Gemini API key in ⚙️ API Settings.'
+          );
+          if (!go) return;
+          showProc('Preparing OCR…');
+          text = await ocrPdf(file);
+        }
+      } else {
+        text = await ocrImage(file);
+      }
+
+      setProc('Analysing sale items…');
+      found = parseAdText(text);
+    }
 
     if (found.length === 0) {
-      showError('No meat or produce sale items detected. Try adding items manually below.');
-      loadItems([]);   // show the manual-add UI anyway
+      showError('No meat or produce sale items detected. Add a Gemini API key in ⚙️ API Settings for better results, or add items manually below.');
+      loadItems([]);
     } else {
       loadItems(found);
     }
@@ -1230,16 +1381,20 @@ function loadSampleData() {
 // ═══════════════════════════════════════════════════════════════════
 
 function openModal() {
-  const ex = localStorage.getItem('spoonacular_key');
-  if (ex) document.getElementById('key-input').value = ex;
+  const sk = localStorage.getItem('spoonacular_key');
+  const gk = localStorage.getItem('gemini_key');
+  if (sk) document.getElementById('key-input').value = sk;
+  if (gk) document.getElementById('gemini-input').value = gk;
   document.getElementById('overlay').classList.add('open');
-  setTimeout(()=>document.getElementById('key-input').focus(), 60);
+  setTimeout(() => document.getElementById('gemini-input').focus(), 60);
 }
 function closeModal() { document.getElementById('overlay').classList.remove('open'); }
 function saveKey() {
-  const k = document.getElementById('key-input').value.trim();
-  if (!k) return;
-  localStorage.setItem('spoonacular_key', k);
+  const sk = document.getElementById('key-input').value.trim();
+  const gk = document.getElementById('gemini-input').value.trim();
+  if (sk) localStorage.setItem('spoonacular_key', sk);
+  if (gk) localStorage.setItem('gemini_key', gk);
+  else    localStorage.removeItem('gemini_key');
   closeModal();
   document.getElementById('api-alert').innerHTML = '';
 }
@@ -1272,10 +1427,11 @@ document.getElementById('overlay').addEventListener('click', e => {
 function init() {
   initFilters();
 
-  if (!localStorage.getItem('spoonacular_key')) {
+  const hasSpoон  = !!localStorage.getItem('spoonacular_key');
+  if (!hasSpoон) {
     document.getElementById('api-alert').innerHTML = `
       <div class="alert">
-        🔑 <strong>Add your free Spoonacular API key</strong> to unlock recipe recommendations.
+        🍽️ <strong>Add a Spoonacular API key</strong> to unlock recipe search.
         <button onclick="openModal()">Add key →</button>
       </div>`;
   }
