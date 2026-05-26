@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DealPlate — Recipes from your grocery ad</title>
+  <style>
+    :root {
+      --green:       #2d6a4f;
+      --green-mid:   #40916c;
+      --green-light: #52b788;
+      --green-pale:  #d8f3dc;
+      --orange:      #e76f51;
+      --bg:          #f4f7f5;
+      --card:        #ffffff;
+      --text:        #1b2631;
+      --muted:       #6c7a72;
+      --border:      #dde5e0;
+      --radius:      12px;
+      --shadow:      0 2px 12px rgba(0,0,0,0.07);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────── */
+    header {
+      background: var(--green);
+      color: white;
+      padding: 16px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .logo { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; }
+    .logo span { color: var(--green-light); }
+    .settings-btn {
+      background: rgba(255,255,255,0.15);
+      border: 1.5px solid rgba(255,255,255,0.3);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    .settings-btn:hover { background: rgba(255,255,255,0.25); }
+
+    /* ── Layout ───────────────────────────────────────────────────── */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 36px 24px 72px;
+    }
+
+    section { margin-bottom: 32px; }
+
+    .section-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
+    .section-sub   { font-size: 0.88rem; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
+
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .section-header-row .section-sub { margin-bottom: 0; }
+
+    /* ── Banners ──────────────────────────────────────────────────── */
+    .error-banner {
+      background: #fee2e2;
+      border: 1.5px solid #fca5a5;
+      color: #991b1b;
+      border-radius: 10px;
+      padding: 13px 16px;
+      margin-bottom: 20px;
+      font-size: 0.88rem;
+      display: none;
+    }
+    .alert {
+      background: #fffbeb;
+      border: 1.5px solid #fcd34d;
+      color: #78350f;
+      border-radius: 10px;
+      padding: 13px 16px;
+      margin-bottom: 24px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+    .alert button {
+      background: none; border: none;
+      color: #78350f; font-weight: 700;
+      cursor: pointer; text-decoration: underline;
+    }
+
+    /* ── Utility buttons ──────────────────────────────────────────── */
+    .link-btn {
+      background: none; border: none;
+      color: var(--green); font-size: 0.83rem;
+      font-weight: 600; cursor: pointer;
+      text-decoration: none; padding: 0;
+      transition: opacity 0.15s;
+    }
+    .link-btn:hover { opacity: 0.7; }
+    .sep { color: var(--border); font-size: 0.8rem; margin: 0 2px; }
+
+    /* ── Upload zone ──────────────────────────────────────────────── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      background: white;
+      padding: 52px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .upload-zone:hover,
+    .upload-zone.drag-over {
+      border-color: var(--green);
+      background: var(--green-pale);
+    }
+    .upload-zone .up-icon  { font-size: 2.6rem; margin-bottom: 12px; }
+    .upload-zone .up-label { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
+    .upload-zone .up-hint  { font-size: 0.82rem; color: var(--muted); margin-bottom: 20px; }
+    .upload-file-btn {
+      background: var(--green);
+      color: white; border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 0.9rem; font-weight: 600;
+      cursor: pointer;
+      transition: background 0.18s;
+      pointer-events: none; /* zone click handles it */
+    }
+    .upload-zone:hover .upload-file-btn { background: var(--green-mid); }
+    .upload-footer {
+      text-align: center;
+      margin-top: 12px;
+    }
+
+    /* ── Processing indicator ─────────────────────────────────────── */
+    .processing-section {
+      background: white;
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+    .proc-msg {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--green);
+      margin-bottom: 10px;
+    }
+    .proc-bar {
+      height: 5px;
+      background: var(--green-pale);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .proc-fill {
+      height: 100%;
+      background: var(--green);
+      border-radius: 3px;
+      width: 30%;
+      animation: sweep 1.6s ease-in-out infinite;
+    }
+    @keyframes sweep {
+      0%   { transform: translateX(-200%); width: 40%; }
+      100% { transform: translateX(350%);  width: 40%; }
+    }
+
+    /* ── Filter tabs (category) ───────────────────────────────────── */
+    .filter-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-tab {
+      padding: 7px 18px;
+      border-radius: 20px;
+      border: 2px solid var(--border);
+      background: white;
+      cursor: pointer;
+      font-size: 0.85rem; font-weight: 500;
+      transition: all 0.15s;
+    }
+    .filter-tab:hover  { border-color: var(--green-light); }
+    .filter-tab.active { background: var(--green); border-color: var(--green); color: white; }
+
+    /* ── Item chips ───────────────────────────────────────────────── */
+    .items-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; min-height: 48px; }
+
+    .item-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 10px 7px 12px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      font-size: 0.83rem;
+      transition: all 0.15s;
+      max-width: 240px;
+      box-shadow: var(--shadow);
+      user-select: none;
+    }
+    .item-chip:hover  { border-color: var(--green-light); transform: translateY(-1px); }
+    .item-chip.selected {
+      border-color: var(--green);
+      background: var(--green-pale);
+    }
+    .chip-body { flex: 1; min-width: 0; }
+    .chip-name {
+      font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .chip-price { font-size: 0.75rem; color: var(--orange); font-weight: 700; margin-top: 1px; }
+    .chip-remove {
+      flex-shrink: 0;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: none; background: none;
+      color: var(--muted);
+      font-size: 0.75rem; font-weight: 700;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      margin-left: 2px;
+    }
+    .chip-remove:hover { background: #fee2e2; color: #991b1b; }
+
+    /* ── Add item row ─────────────────────────────────────────────── */
+    .add-item-row {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .add-item-row input {
+      flex: 1; min-width: 180px;
+      padding: 9px 12px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.88rem; outline: none;
+      background: white;
+    }
+    .add-item-row input:focus { border-color: var(--green); }
+    .add-item-row select {
+      padding: 9px 10px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.85rem; outline: none;
+      background: white; cursor: pointer;
+    }
+    .add-btn {
+      padding: 9px 18px;
+      background: var(--green);
+      color: white; border: none;
+      border-radius: 8px;
+      font-size: 0.88rem; font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .add-btn:hover { background: var(--green-mid); }
+
+    /* ── Recipe filters card ──────────────────────────────────────── */
+    .filters-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      box-shadow: var(--shadow);
+    }
+    .filters-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 18px;
+    }
+    .filter-group        { margin-bottom: 14px; }
+    .filter-group:last-child { margin-bottom: 0; }
+    .filter-group-label  {
+      font-size: 0.72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--muted); margin-bottom: 7px;
+    }
+    .filter-pills        { display: flex; flex-wrap: wrap; gap: 6px; }
+    .filter-pill {
+      padding: 5px 13px;
+      border-radius: 16px;
+      border: 1.5px solid var(--border);
+      background: white; color: var(--text);
+      font-size: 0.82rem; font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-pill:hover  { border-color: var(--green-light); }
+    .filter-pill.active { background: var(--green); border-color: var(--green); color: white; }
+
+    /* ── Find recipes bar ─────────────────────────────────────────── */
+    .recipes-bar {
+      background: white;
+      border-radius: var(--radius);
+      padding: 18px 24px;
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 16px;
+      box-shadow: var(--shadow);
+      flex-wrap: wrap;
+    }
+    .bar-info .count { font-size: 1rem; font-weight: 700; }
+    .bar-info .hint  { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+    .find-btn {
+      background: var(--green); color: white;
+      border: none; padding: 13px 28px;
+      border-radius: 9px; font-size: 0.95rem; font-weight: 700;
+      cursor: pointer; white-space: nowrap;
+      transition: background 0.18s, transform 0.1s;
+    }
+    .find-btn:hover    { background: var(--green-mid); transform: translateY(-1px); }
+    .find-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ── Recipe cards ─────────────────────────────────────────────── */
+    .recipes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 18px; margin-top: 20px;
+    }
+    .recipe-card {
+      background: white; border-radius: var(--radius);
+      overflow: hidden; box-shadow: var(--shadow);
+      text-decoration: none; color: var(--text); display: block;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .recipe-card:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(0,0,0,0.12); }
+    .recipe-card img   { width: 100%; height: 170px; object-fit: cover; background: #e5ede9; display: block; }
+    .card-body         { padding: 13px 15px 15px; }
+    .card-title        { font-weight: 700; font-size: 0.93rem; line-height: 1.35; margin-bottom: 7px; }
+    .card-meta {
+      display: flex; gap: 10px;
+      font-size: 0.76rem; color: var(--muted);
+      margin-bottom: 9px;
+    }
+    .card-meta span { display: flex; align-items: center; gap: 3px; }
+    .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag { padding: 2px 7px; border-radius: 4px; font-size: 0.69rem; font-weight: 600; }
+    .tag-used   { background: var(--green-pale); color: var(--green); }
+    .tag-missed { background: #fef3c7; color: #92400e; }
+
+    /* ── Skeletons ────────────────────────────────────────────────── */
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #efefef 25%, #e3e3e3 50%, #efefef 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+    }
+    .sk-img  { height: 170px; border-radius: 0; }
+    .sk-line { height: 13px; margin: 13px 14px 8px; }
+    .sk-line.short { width: 55%; }
+
+    /* ── Empty state ──────────────────────────────────────────────── */
+    .empty-state { text-align: center; padding: 52px 24px; color: var(--muted); }
+    .empty-state .emoji { font-size: 2.6rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.93rem; line-height: 1.6; max-width: 300px; margin: 0 auto; }
+
+    /* ── Modal ────────────────────────────────────────────────────── */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 200;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: white; border-radius: 16px; padding: 32px;
+      max-width: 460px; width: 100%;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.18);
+    }
+    .modal h2 { font-size: 1.15rem; margin-bottom: 10px; }
+    .modal p  { color: var(--muted); font-size: 0.87rem; line-height: 1.65; margin-bottom: 20px; }
+    .modal p a { color: var(--green); font-weight: 600; }
+    .modal label { display: block; font-size: 0.84rem; font-weight: 600; margin-bottom: 6px; }
+    .modal input {
+      width: 100%; padding: 11px 14px;
+      border: 2px solid var(--border); border-radius: 8px;
+      font-size: 0.9rem; outline: none; margin-bottom: 18px;
+      font-family: monospace;
+    }
+    .modal input:focus { border-color: var(--green); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .btn-secondary {
+      padding: 10px 20px; border: 2px solid var(--border);
+      border-radius: 8px; background: white;
+      cursor: pointer; font-size: 0.88rem;
+    }
+    .btn-primary {
+      padding: 10px 22px; background: var(--green);
+      color: white; border: none; border-radius: 8px;
+      cursor: pointer; font-size: 0.88rem; font-weight: 700;
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 14px 16px; }
+      .recipes-bar { flex-direction: column; align-items: flex-start; }
+      .find-btn { width: 100%; text-align: center; }
+      .upload-zone { padding: 36px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<header>
+  <div class="logo">Deal<span>Plate</span></div>
+  <button class="settings-btn" onclick="openModal()">⚙️ API Settings</button>
+</header>
+
+<!-- ── Main ────────────────────────────────────────────────────────────── -->
+<main>
+
+  <div id="error-banner" class="error-banner"></div>
+  <div id="api-alert"></div>
+
+  <!-- 1 · Upload ─────────────────────────────────────────────────────── -->
+  <section id="upload-section">
+    <div class="section-title">📄 Upload Your Grocery Ad</div>
+    <div class="section-sub">Drop in a weekly-ad PDF or photo — we'll pull out the sale items automatically</div>
+
+    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+      <input type="file" id="file-input" accept=".pdf,image/*" style="display:none" />
+      <div class="up-icon">🗞️</div>
+      <div class="up-label">Drag &amp; drop your grocery ad here</div>
+      <div class="up-hint">PDF, JPG, PNG or WEBP · Max 20 MB</div>
+      <div class="upload-file-btn">Choose File</div>
+    </div>
+
+    <div class="upload-footer">
+      <button class="link-btn" onclick="event.stopPropagation(); loadSampleData()">Or try with sample data →</button>
+    </div>
+  </section>
+
+  <!-- 2 · Processing ──────────────────────────────────────────────────── -->
+  <div id="proc-section" class="processing-section" style="display:none">
+    <div class="proc-msg" id="proc-msg">Processing…</div>
+    <div class="proc-bar"><div class="proc-fill"></div></div>
+  </div>
+
+  <!-- 3 · Extracted items ─────────────────────────────────────────────── -->
+  <section id="items-section" style="display:none">
+    <div class="section-header-row">
+      <div>
+        <div class="section-title">🛒 Sale Items</div>
+        <div class="section-sub" id="items-sub">Click items you want to cook with, then find recipes below</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:4px">
+        <button class="link-btn" onclick="selectAll()">Select all</button>
+        <span class="sep">·</span>
+        <button class="link-btn" onclick="clearSelection()">Deselect all</button>
+        <span class="sep">·</span>
+        <button class="link-btn" onclick="document.getElementById('file-input').click()">Upload another</button>
+      </div>
+    </div>
+
+    <div class="filter-tabs">
+      <button class="filter-tab active" onclick="setCatFilter('all',this)">All</button>
+      <button class="filter-tab" onclick="setCatFilter('meat',this)">🥩 Meat &amp; Seafood</button>
+      <button class="filter-tab" onclick="setCatFilter('produce',this)">🥦 Produce</button>
+    </div>
+
+    <div class="items-grid" id="items-grid"></div>
+
+    <div class="add-item-row">
+      <input id="add-input" type="text" placeholder="Add an item manually…"
+             onkeydown="if(event.key==='Enter')addManual()" />
+      <select id="add-cat">
+        <option value="meat">🥩 Meat</option>
+        <option value="produce">🥦 Produce</option>
+      </select>
+      <button class="add-btn" onclick="addManual()">+ Add</button>
+    </div>
+  </section>
+
+  <!-- 4 · Recipe filters ──────────────────────────────────────────────── -->
+  <section id="filters-section" style="display:none">
+    <div class="filters-card">
+      <div class="filters-header">
+        <div class="section-title" style="font-size:1.05rem;margin-bottom:0">🍽️ Recipe Preferences</div>
+        <button class="link-btn" id="reset-btn" onclick="resetFilters()" style="display:none">Reset all</button>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-label">Cuisine</div>
+        <div class="filter-pills" id="fp-cuisine"></div>
+      </div>
+      <div class="filter-group">
+        <div class="filter-group-label">Diet</div>
+        <div class="filter-pills" id="fp-diet"></div>
+      </div>
+      <div class="filter-group">
+        <div class="filter-group-label">Meal Type</div>
+        <div class="filter-pills" id="fp-type"></div>
+      </div>
+      <div class="filter-group">
+        <div class="filter-group-label">Cook Time</div>
+        <div class="filter-pills" id="fp-time"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · Find-recipes bar ────────────────────────────────────────────── -->
+  <div id="recipes-bar" class="recipes-bar" style="display:none">
+    <div class="bar-info">
+      <div class="count" id="sel-count">0 items selected</div>
+      <div class="hint"  id="filter-hint">No filters active</div>
+    </div>
+    <button class="find-btn" id="find-btn" onclick="findRecipes()" disabled>Find Recipes →</button>
+  </div>
+
+  <!-- 6 · Results ─────────────────────────────────────────────────────── -->
+  <section id="results-section" style="display:none">
+    <div class="section-title">🍳 Recipes for You</div>
+    <div class="section-sub" id="results-sub"></div>
+    <div class="recipes-grid" id="recipes-grid"></div>
+  </section>
+
+  <div id="no-results" class="empty-state" style="display:none">
+    <div class="emoji">🔍</div>
+    <p>No recipes found. Try adjusting your filters or selecting different ingredients.</p>
+  </div>
+
+</main>
+
+<!-- ── API key modal ────────────────────────────────────────────────────── -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2>🔑 Spoonacular API Key</h2>
+    <p>
+      DealPlate uses <a href="https://spoonacular.com/food-api" target="_blank">Spoonacular</a>
+      to find recipes. The free tier allows <strong>150 requests/day</strong> — plenty for daily personal use.
+      <br><br>
+      <a href="https://spoonacular.com/food-api/console#Dashboard" target="_blank">Get your free key →</a>
+    </p>
+    <label for="key-input">Your API Key</label>
+    <input type="text" id="key-input" placeholder="Paste your Spoonacular key here" autocomplete="off" />
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveKey()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── JavaScript ────────────────────────────────────────────────────────── -->
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════════════════
+
+const MEAT_KW = [
+  'chicken','beef','steak','pork','turkey','salmon','shrimp','tilapia',
+  'cod ','tuna','lamb','veal','duck','sausage','bacon','ham ','brisket',
+  'rib','tenderloin','loin','breast','thigh','wing','drumstick',
+  'ground ','fillet','filet','seafood','fish','crab','lobster','scallop',
+  'clam','oyster','halibut','trout','catfish','chorizo','pepperoni',
+  'kielbasa','bratwurst','sirloin','chuck ','flank','ribeye','rib eye',
+  't-bone','skirt','hanger','meatball','cutlet','chop','roast','pulled',
+  'prosciutto','pancetta','salami'
+];
+
+const PRODUCE_KW = [
+  'apple','orange','banana','grape','strawberr','blueberr','raspberr',
+  'lemon','lime','avocado','tomato','lettuce','spinach','kale','broccoli',
+  'cauliflower','carrot','potato','onion','garlic','pepper ','bell pepper',
+  'zucchini','cucumber','celery','corn','mushroom','asparagus','beet',
+  'eggplant','squash','mango','peach','plum','cherr','watermelon',
+  'cantaloupe','pear','pineapple','grapefruit','melon','cabbage','arugula',
+  'chard','collard','turnip','parsnip','radish','leek','shallot',
+  'artichoke','fennel','cilantro','parsley','basil','mint','ginger',
+  'sweet potato','yam','butternut','acorn','pomelo','tangerine',
+  'clementine','fig','blackberr','cranberr','apricot','nectarine','kiwi',
+  'papaya','coconut','persimmon','pomegranate','green bean','snap pea',
+  'snow pea','edamame','bok choy','brussel','endive','watercress',
+  'scallion','green onion','herb '
+];
+
+const FILTER_OPTS = {
+  cuisine: [
+    {l:'Any',v:''},{l:'Italian',v:'italian'},{l:'Mexican',v:'mexican'},
+    {l:'Asian',v:'asian'},{l:'Mediterranean',v:'mediterranean'},
+    {l:'Indian',v:'indian'},{l:'American',v:'american'},
+    {l:'French',v:'french'},{l:'Greek',v:'greek'},
+  ],
+  diet: [
+    {l:'Any',v:''},{l:'Vegetarian',v:'vegetarian'},{l:'Vegan',v:'vegan'},
+    {l:'Gluten-Free',v:'gluten free'},{l:'Keto',v:'ketogenic'},
+    {l:'Paleo',v:'paleo'},{l:'Pescetarian',v:'pescetarian'},
+  ],
+  type: [
+    {l:'Any',v:''},{l:'Main Course',v:'main course'},{l:'Breakfast',v:'breakfast'},
+    {l:'Soup',v:'soup'},{l:'Salad',v:'salad'},{l:'Appetizer',v:'appetizer'},
+    {l:'Snack',v:'snack'},
+  ],
+  time: [
+    {l:'Any',v:0},{l:'≤ 15 min',v:15},{l:'≤ 30 min',v:30},
+    {l:'≤ 45 min',v:45},{l:'≤ 60 min',v:60},
+  ],
+};
+
+const SAMPLE_ITEMS = [
+  {name:'Boneless Skinless Chicken Breasts',category:'meat',  sale_price:2.49},
+  {name:'85/15 Ground Beef',               category:'meat',  sale_price:3.99},
+  {name:'Pork Tenderloin',                 category:'meat',  sale_price:4.49},
+  {name:'Atlantic Salmon Fillets',         category:'meat',  sale_price:5.99},
+  {name:'Shrimp Large Raw',                category:'meat',  sale_price:7.49},
+  {name:'Turkey Ground Lean',              category:'meat',  sale_price:3.49},
+  {name:'Broccoli Crowns',                 category:'produce',sale_price:0.99},
+  {name:'Roma Tomatoes',                   category:'produce',sale_price:0.79},
+  {name:'Baby Spinach',                    category:'produce',sale_price:2.49},
+  {name:'Red Bell Peppers',                category:'produce',sale_price:1.49},
+  {name:'Russet Potatoes 5lb Bag',         category:'produce',sale_price:2.99},
+  {name:'Fuji Apples',                     category:'produce',sale_price:1.99},
+  {name:'Zucchini',                        category:'produce',sale_price:0.89},
+  {name:'Blueberries',                     category:'produce',sale_price:2.99},
+];
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+
+let items      = [];            // { id, name, category, sale_price }
+let selected   = new Set();     // ids of selected items
+let catFilter  = 'all';
+let filters    = { cuisine:'', diet:'', type:'', time:0 };
+
+// ═══════════════════════════════════════════════════════════════════
+//  LAZY LOADERS
+// ═══════════════════════════════════════════════════════════════════
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+async function ensurePdfJs() {
+  if (window.pdfjsLib) return;
+  setProc('Loading PDF library…');
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+async function ensureTesseract() {
+  if (window.Tesseract) return;
+  setProc('Loading OCR engine… (first time may take ~10 s)');
+  await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  EXTRACTION
+// ═══════════════════════════════════════════════════════════════════
+
+/** Extract text from a digital PDF using PDF.js. */
+async function extractPdfText(file) {
+  await ensurePdfJs();
+  const ab  = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  let out   = '';
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    setProc(`Extracting text — page ${p} of ${pdf.numPages}…`);
+    const page    = await pdf.getPage(p);
+    const content = await page.getTextContent();
+
+    // Group text items by y-coordinate to preserve line order
+    const byY = new Map();
+    for (const item of content.items) {
+      if (!item.str.trim()) continue;
+      const y = Math.round(item.transform[5]);
+      if (!byY.has(y)) byY.set(y, []);
+      byY.get(y).push({ x: item.transform[4], str: item.str });
+    }
+    const rows = [...byY.keys()].sort((a, b) => b - a);
+    for (const y of rows) {
+      out += byY.get(y).sort((a, b) => a.x - b.x).map(i => i.str).join(' ') + '\n';
+    }
+    out += '\n';
+  }
+  return out;
+}
+
+/** OCR a scanned PDF by rendering each page to canvas then running Tesseract. */
+async function ocrPdf(file) {
+  await ensurePdfJs();
+  await ensureTesseract();
+  const ab  = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  let out   = '';
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    setProc(`OCR — page ${p} of ${pdf.numPages} (this may take a moment)…`);
+    const page     = await pdf.getPage(p);
+    const viewport = page.getViewport({ scale: 2.0 });
+    const canvas   = document.createElement('canvas');
+    canvas.width   = viewport.width;
+    canvas.height  = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+    const blob   = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const worker = await Tesseract.createWorker('eng');
+    const { data: { text } } = await worker.recognize(blob);
+    await worker.terminate();
+    out += text + '\n\n';
+  }
+  return out;
+}
+
+/** OCR a raster image using Tesseract. */
+async function ocrImage(file) {
+  await ensureTesseract();
+  setProc('Running image recognition…');
+  const worker = await Tesseract.createWorker('eng');
+  const { data: { text } } = await worker.recognize(file);
+  await worker.terminate();
+  return text;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TEXT PARSING
+// ═══════════════════════════════════════════════════════════════════
+
+const PRICE_RE = /\$\s*(\d{1,2}\.?\d{0,2})\b/;
+const SKIP_RE  = /^(valid|page|week|save|buy|get|with|sale|digital|coupon|card|limit|price|per|bonus|special|ad|weekly|store|visit|shop|dept|department|®|™)/i;
+
+function classifyItem(nl) {
+  for (const kw of MEAT_KW)    if (nl.includes(kw)) return 'meat';
+  for (const kw of PRODUCE_KW) if (nl.includes(kw)) return 'produce';
+  return null;
+}
+
+function capitalize(s) {
+  return s.replace(/\b([a-z])/g, c => c.toUpperCase())
+          .replace(/\b(And|Or|The|In|Of|For|A|An)\b/g, m => m.toLowerCase())
+          .replace(/^./, c => c.toUpperCase());
+}
+
+function parseAdText(raw) {
+  const lines = raw
+    .replace(/\r\n/g, '\n')
+    .replace(/[^\x20-\x7E\n]/g, ' ')
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0);
+
+  const deals  = [];
+  const seenKs = new Set();
+
+  for (let i = 0; i < lines.length; i++) {
+    const pm = lines[i].match(PRICE_RE);
+    if (!pm) continue;
+
+    const price = parseFloat(pm[1]);
+    if (!price || price <= 0 || price > 30) continue;
+
+    // Collect name lines from up to 4 rows above this price line
+    const nameParts = [];
+    for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+      const l = lines[j];
+      if (l.match(PRICE_RE)) break;         // another price — stop
+      if (l.match(SKIP_RE))  continue;      // promo language — skip
+      if (l.length < 3 || l.length > 80)   continue;
+      if (/^\d+$/.test(l))                  continue;
+      nameParts.unshift(l);
+    }
+
+    const name = nameParts.join(' ').trim();
+    if (name.length < 3) continue;
+
+    const cat = classifyItem(name.toLowerCase());
+    if (!cat) continue;
+
+    const key = name.toLowerCase().slice(0, 18);
+    if (seenKs.has(key)) continue;
+    seenKs.add(key);
+
+    deals.push({
+      id:         crypto.randomUUID(),
+      name:       capitalize(name.slice(0, 60)),
+      category:   cat,
+      sale_price: price,
+    });
+  }
+
+  return deals;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  FILE HANDLING
+// ═══════════════════════════════════════════════════════════════════
+
+async function handleFile(file) {
+  if (!file) return;
+  if (file.size > 20 * 1024 * 1024) {
+    showError('File too large — please use a file under 20 MB.');
+    return;
+  }
+
+  showProc('Reading file…');
+
+  try {
+    let text = '';
+
+    if (file.type === 'application/pdf') {
+      text = await extractPdfText(file);
+
+      // If text is too short, it's likely a scanned PDF — offer OCR
+      if (text.replace(/\s/g, '').length < 60) {
+        hideProc();
+        const go = confirm(
+          'This looks like a scanned (image-based) PDF.\n\n' +
+          'Run image recognition on it? This may take 30–60 seconds.'
+        );
+        if (go) {
+          showProc('Preparing OCR…');
+          text = await ocrPdf(file);
+        } else {
+          return;
+        }
+      }
+    } else if (file.type.startsWith('image/')) {
+      text = await ocrImage(file);
+    } else {
+      showError('Unsupported file type. Please upload a PDF, JPG, or PNG.');
+      return;
+    }
+
+    setProc('Analysing sale items…');
+    const found = parseAdText(text);
+
+    if (found.length === 0) {
+      showError('No meat or produce sale items detected. Try adding items manually below.');
+      loadItems([]);   // show the manual-add UI anyway
+    } else {
+      loadItems(found);
+    }
+
+  } catch (err) {
+    showError('Could not process the file: ' + err.message);
+    console.error(err);
+  } finally {
+    hideProc();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  ITEM MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════
+
+function mkId() { return crypto.randomUUID(); }
+
+function loadItems(newItems) {
+  items    = newItems.map(d => ({ id: d.id || mkId(), ...d }));
+  selected = new Set();
+  catFilter = 'all';
+  document.querySelectorAll('.filter-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
+  show('items-section');
+  show('filters-section');
+  show('recipes-bar');
+  renderItems();
+  updateBar();
+  document.getElementById('items-section').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function addManual() {
+  const input = document.getElementById('add-input');
+  const cat   = document.getElementById('add-cat').value;
+  const name  = input.value.trim();
+  if (!name) return;
+  items.push({ id: mkId(), name: capitalize(name), category: cat, sale_price: null });
+  input.value = '';
+  renderItems();
+}
+
+function removeItem(id) {
+  items = items.filter(d => d.id !== id);
+  selected.delete(id);
+  renderItems();
+  updateBar();
+}
+
+function toggleSelect(id) {
+  if (selected.has(id)) selected.delete(id);
+  else selected.add(id);
+  // Sync all chips for this id (there may be none in filtered view)
+  document.querySelectorAll(`[data-id="${CSS.escape(id)}"]`).forEach(el =>
+    el.classList.toggle('selected', selected.has(id))
+  );
+  updateBar();
+}
+
+function selectAll() {
+  items.forEach(d => selected.add(d.id));
+  renderItems();
+  updateBar();
+}
+
+function clearSelection() {
+  selected.clear();
+  renderItems();
+  updateBar();
+}
+
+function setCatFilter(cat, btn) {
+  catFilter = cat;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderItems();
+}
+
+function renderItems() {
+  const grid = document.getElementById('items-grid');
+  const list = catFilter === 'all' ? items : items.filter(d => d.category === catFilter);
+
+  if (!list.length) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:.88rem;padding:8px 0">No items in this category. Add one below.</div>';
+    const sub = document.getElementById('items-sub');
+    sub.textContent = items.length
+      ? `${items.length} item${items.length > 1 ? 's' : ''} detected · ${selected.size} selected`
+      : 'Add items manually below';
+    return;
+  }
+
+  grid.innerHTML = list.map(d => {
+    const sel  = selected.has(d.id);
+    const icon = d.category === 'meat' ? '🥩' : '🥦';
+    const pr   = d.sale_price != null ? `$${parseFloat(d.sale_price).toFixed(2)}` : '';
+    return `
+      <div class="item-chip ${sel?'selected':''}" data-id="${escHtml(d.id)}"
+           onclick="toggleSelect('${escHtml(d.id)}')">
+        <span style="font-size:1rem;flex-shrink:0">${icon}</span>
+        <div class="chip-body">
+          <div class="chip-name">${escHtml(d.name)}</div>
+          ${pr ? `<div class="chip-price">${pr}</div>` : ''}
+        </div>
+        <button class="chip-remove" title="Remove"
+                onclick="event.stopPropagation();removeItem('${escHtml(d.id)}')">✕</button>
+      </div>`;
+  }).join('');
+
+  document.getElementById('items-sub').textContent =
+    `${items.length} item${items.length!==1?'s':''} · ${selected.size} selected`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  FILTERS
+// ═══════════════════════════════════════════════════════════════════
+
+function initFilters() {
+  const map = { cuisine:'fp-cuisine', diet:'fp-diet', type:'fp-type', time:'fp-time' };
+  for (const [key, elId] of Object.entries(map)) {
+    const container = document.getElementById(elId);
+    container.innerHTML = FILTER_OPTS[key].map(opt => `
+      <button class="filter-pill ${filters[key]===opt.v?'active':''}"
+              onclick="setFilter('${key}','${escHtml(String(opt.v))}',this)">
+        ${escHtml(opt.l)}
+      </button>`).join('');
+  }
+}
+
+function setFilter(key, val, btn) {
+  // Parse numeric for time
+  filters[key] = key === 'time' ? parseInt(val) : val;
+
+  // Update active pill in this group
+  btn.closest('.filter-pills').querySelectorAll('.filter-pill')
+     .forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+
+  updateBar();
+
+  // Show/hide Reset button
+  const hasAny = filters.cuisine || filters.diet || filters.type || filters.time;
+  document.getElementById('reset-btn').style.display = hasAny ? '' : 'none';
+}
+
+function resetFilters() {
+  filters = { cuisine:'', diet:'', type:'', time:0 };
+  initFilters();
+  updateBar();
+  document.getElementById('reset-btn').style.display = 'none';
+}
+
+function filterSummary() {
+  const parts = [];
+  if (filters.cuisine) parts.push(filters.cuisine);
+  if (filters.diet)    parts.push(filters.diet);
+  if (filters.type)    parts.push(filters.type);
+  if (filters.time)    parts.push(`≤ ${filters.time} min`);
+  return parts.length ? parts.join(' · ') : 'No filters active';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  RECIPE SEARCH
+// ═══════════════════════════════════════════════════════════════════
+
+async function findRecipes() {
+  const key = localStorage.getItem('spoonacular_key');
+  if (!key) { openModal(); return; }
+
+  const btn = document.getElementById('find-btn');
+  btn.disabled = true;
+  btn.textContent = 'Searching…';
+
+  const secResults = document.getElementById('results-section');
+  const grid       = document.getElementById('recipes-grid');
+  const noRes      = document.getElementById('no-results');
+
+  secResults.style.display = 'block';
+  noRes.style.display      = 'none';
+  grid.innerHTML = skeletons(8);
+  secResults.scrollIntoView({ behavior:'smooth', block:'start' });
+
+  // Build ingredient list from selected items
+  const ingredients = items
+    .filter(d => selected.has(d.id))
+    .map(d => d.name.toLowerCase()
+                    .replace(/\b(boneless|skinless|fresh|organic|value pack|family pack|lb bag|oz bag)\b/gi,'')
+                    .replace(/\s+/g,' ').trim().split(',')[0].split('(')[0].trim());
+
+  try {
+    const params = new URLSearchParams({
+      includeIngredients:    ingredients.join(','),
+      addRecipeInformation:  'true',
+      fillIngredients:       'true',
+      instructionsRequired:  'true',
+      number:                '12',
+      sort:                  'min-missing-ingredients',
+      apiKey:                key,
+    });
+    if (filters.cuisine) params.set('cuisine',      filters.cuisine);
+    if (filters.diet)    params.set('diet',         filters.diet);
+    if (filters.type)    params.set('type',         filters.type);
+    if (filters.time)    params.set('maxReadyTime', filters.time);
+
+    const resp = await fetch(`https://api.spoonacular.com/recipes/complexSearch?${params}`);
+
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      if (resp.status === 401 || resp.status === 403)
+        showError('Invalid Spoonacular API key — update it in ⚙️ API Settings.');
+      else if (resp.status === 402)
+        showError('Daily Spoonacular quota reached (150 req/day on free tier). Try again tomorrow.');
+      else
+        showError(`Spoonacular error ${resp.status}: ${body.message || resp.statusText}`);
+      secResults.style.display = 'none';
+      return;
+    }
+
+    const data = await resp.json();
+    const results = data.results || [];
+
+    if (!results.length) {
+      secResults.style.display = 'none';
+      noRes.style.display      = 'block';
+      return;
+    }
+
+    renderRecipes(results, ingredients);
+
+  } catch (err) {
+    showError('Network error — check your connection and try again.');
+    secResults.style.display = 'none';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Find Recipes →';
+    updateBar();
+  }
+}
+
+function renderRecipes(results, ingredients) {
+  const grid = document.getElementById('recipes-grid');
+  const sub  = document.getElementById('results-sub');
+
+  const active = filterSummary();
+  sub.textContent = `${results.length} recipes using: ${ingredients.join(', ')}${active !== 'No filters active' ? ' · ' + active : ''}`;
+
+  grid.innerHTML = results.map(r => {
+    const slug = r.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    const url  = r.sourceUrl || `https://spoonacular.com/recipes/${slug}-${r.id}`;
+    const used   = (r.usedIngredients   || []).map(i => i.name).slice(0, 4);
+    const missed = (r.missedIngredients || []).map(i => i.name).slice(0, 3);
+    const mins   = r.readyInMinutes;
+    const servings = r.servings;
+
+    return `
+      <a class="recipe-card" href="${escHtml(url)}" target="_blank" rel="noopener">
+        <img src="${escHtml(r.image||'')}" alt="${escHtml(r.title)}" loading="lazy"
+             onerror="this.style.background='var(--green-pale)';this.removeAttribute('src')">
+        <div class="card-body">
+          <div class="card-title">${escHtml(r.title)}</div>
+          <div class="card-meta">
+            ${mins     ? `<span>⏱ ${mins} min</span>` : ''}
+            ${servings ? `<span>🍽 ${servings} servings</span>` : ''}
+            <span>✅ ${r.usedIngredientCount||0} sale item${r.usedIngredientCount!==1?'s':''}</span>
+          </div>
+          <div class="tags">
+            ${used  .map(i=>`<span class="tag tag-used">${escHtml(i)}</span>`  ).join('')}
+            ${missed.map(i=>`<span class="tag tag-missed">${escHtml(i)}</span>`).join('')}
+          </div>
+        </div>
+      </a>`;
+  }).join('');
+}
+
+function skeletons(n) {
+  return Array.from({length:n}, ()=>`
+    <div class="recipe-card" style="cursor:default">
+      <div class="skeleton sk-img"></div>
+      <div class="card-body">
+        <div class="skeleton sk-line"></div>
+        <div class="skeleton sk-line short"></div>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════════════════════════
+
+function show(id) { document.getElementById(id).style.display = ''; }
+function hide(id) { document.getElementById(id).style.display = 'none'; }
+
+function showProc(msg) {
+  document.getElementById('proc-msg').textContent = msg;
+  show('proc-section');
+}
+function setProc(msg)  { document.getElementById('proc-msg').textContent = msg; }
+function hideProc()    { hide('proc-section'); }
+
+function updateBar() {
+  const n = selected.size;
+  document.getElementById('sel-count').textContent =
+    n === 0 ? '0 items selected' : `${n} item${n!==1?'s':''} selected`;
+  document.getElementById('filter-hint').textContent = filterSummary();
+  document.getElementById('find-btn').disabled = n === 0;
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-banner');
+  el.textContent = '⚠️ ' + msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 10000);
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function loadSampleData() {
+  loadItems(SAMPLE_ITEMS.map(d => ({ ...d, id: mkId() })));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════════════════════════════
+
+function openModal() {
+  const ex = localStorage.getItem('spoonacular_key');
+  if (ex) document.getElementById('key-input').value = ex;
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('key-input').focus(), 60);
+}
+function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+function saveKey() {
+  const k = document.getElementById('key-input').value.trim();
+  if (!k) return;
+  localStorage.setItem('spoonacular_key', k);
+  closeModal();
+  document.getElementById('api-alert').innerHTML = '';
+}
+document.getElementById('overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('overlay')) closeModal();
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  DRAG & DROP
+// ═══════════════════════════════════════════════════════════════════
+
+(function setupDragDrop() {
+  const zone = document.getElementById('upload-zone');
+  const inp  = document.getElementById('file-input');
+
+  ['dragenter','dragover'].forEach(ev =>
+    zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('drag-over'); })
+  );
+  ['dragleave','drop'].forEach(ev =>
+    zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.remove('drag-over'); })
+  );
+  zone.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+  inp.addEventListener('change', () => handleFile(inp.files[0]));
+})();
+
+// ═══════════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════════
+
+function init() {
+  initFilters();
+
+  if (!localStorage.getItem('spoonacular_key')) {
+    document.getElementById('api-alert').innerHTML = `
+      <div class="alert">
+        🔑 <strong>Add your free Spoonacular API key</strong> to unlock recipe recommendations.
+        <button onclick="openModal()">Add key →</button>
+      </div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
